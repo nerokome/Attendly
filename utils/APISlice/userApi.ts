@@ -79,6 +79,29 @@ export const userApi = baseApi.injectEndpoints({
       },
       invalidatesTags: ['User'],
     }),
+
+    // --- New Admin <-> Office Assignment Endpoints ---
+
+    assignOfficeToAdmin: builder.mutation<any, { adminId: string; officeId: string }>({
+      query: ({ adminId, officeId }) => ({
+        url: `/users/admin/assign-location/${adminId}/${officeId}`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    removeOfficeFromAdmin: builder.mutation<any, { adminId: string; officeId: string }>({
+      query: ({ adminId, officeId }) => ({
+        url: `/users/admin/remove-location/${adminId}/${officeId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    getAdminOffices: builder.query<any, string>({
+      query: (adminId) => `/users/admin/${adminId}/locations`,
+      providesTags: ['User'],
+    }),
   }),
 });
 
@@ -93,5 +116,7 @@ export const {
   useUpdatePasswordMutation,
   useCreateQrTokenMutation,
   useUploadUsersMutation,
+  useAssignOfficeToAdminMutation,
+  useRemoveOfficeFromAdminMutation,
+  useGetAdminOfficesQuery,
 } = userApi;
-

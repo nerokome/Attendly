@@ -34,6 +34,7 @@ export const attendanceApi = baseApi.injectEndpoints({
       status: params.status,
     },
   }),
+  transformResponse: (response: any) => response.data.data,
 }),
     addAttendanceManual: builder.mutation<any, any>({
       query: (body) => ({

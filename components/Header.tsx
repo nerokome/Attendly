@@ -10,8 +10,6 @@ const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
 
-
-
   const userInitials =
     user?.email
       ?.split("@")[0]

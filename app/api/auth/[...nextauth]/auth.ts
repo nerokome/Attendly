@@ -9,7 +9,8 @@ declare module "next-auth" {
     token: string;
     role: string;
     fullName: string;
-    officeId: string;
+    officeId?: string | string[] | null;
+    offices?: string[] | any[] | null;
     phone: string;
   }
 
@@ -20,7 +21,8 @@ declare module "next-auth" {
       token: string;
       role: string;
       fullName: string;
-      officeId: string;
+      officeId?: string | string[] | null;
+      offices?: string[] | any[] | null;
       phone: string;
     };
   }
@@ -63,6 +65,14 @@ export const authOptions: AuthOptions = {
           }
 
           if (user && token) {
+            const officeIds = Array.isArray(user.officeIds)
+              ? user.officeIds
+              : Array.isArray(user.offices)
+                ? user.offices
+                : user.officeId
+                  ? [user.officeId]
+                  : [];
+
             return {
               id: user.id,
               email: user.email,
@@ -70,7 +80,8 @@ export const authOptions: AuthOptions = {
               role: user.role,
               phone: user.phone,
               fullName: `${user.name}`,
-              officeId: user.officeId
+              officeId: officeIds[0] ?? user.officeId ?? null,
+              offices: officeIds,
             };
           }
           return null;
@@ -99,7 +110,8 @@ export const authOptions: AuthOptions = {
         token.token = user.token;
         token.role = user.role;
         token.fullName = user.fullName;
-        token.officeId = user.officeId;
+        token.officeId = user.officeId ?? null;
+        token.offices = user.offices ?? (user.officeId ? [user.officeId] : []);
         token.phone = user.phone;
       }
       return token;
@@ -111,7 +123,8 @@ export const authOptions: AuthOptions = {
         session.user.token = token.token as string;
         session.user.role = token.role as string;
         session.user.fullName = token.fullName as string;
-        session.user.officeId = token.officeId as string;
+        session.user.officeId = (token.officeId as string | string[] | null) ?? null;
+        session.user.offices = (token.offices as any[] | string[] | null) ?? (token.officeId ? [token.officeId] : []);
         session.user.phone = token.phone as string;
       }
       return session;

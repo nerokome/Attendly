@@ -15,7 +15,7 @@ import { SVGLoader } from '@/components/SVGLoader';
 import { useRouter } from 'next/navigation';
 
 import { useGetAttendanceSummaryQuery, useGetDashboardStatsQuery } from '@/utils/APISlice/attendanceApi';
-import { useGetUsersQuery, useCreateQrTokenMutation } from '@/utils/APISlice/userApi';
+import { useGetUsersQuery, useCreateQrTokenMutation, useGetAdminOfficesQuery } from '@/utils/APISlice/userApi';
 import { useGetOfficeLocationsQuery } from '@/utils/APISlice/officeLocationApi';
 
 const EmployeeDashBoard = () => {
@@ -77,6 +77,7 @@ const EmployeeDashBoard = () => {
 	};
 
 	const isSuperAdmin = user?.role?.toUpperCase() === "SUPER_ADMIN";
+	const isAdmin = user?.role?.toUpperCase() === "ADMIN";
 	const [selectedOfficeId, setSelectedOfficeId] = useState("");
 	const summaryOfficeId = isSuperAdmin ? selectedOfficeId : (user?.officeId || "");
 	const shouldSkip = !user || (!isSuperAdmin && !user.officeId);
@@ -99,6 +100,10 @@ const EmployeeDashBoard = () => {
 	const { data: usersData, isLoading: isLoadingUsers } = useGetUsersQuery();
 	const { data: officeData, isLoading: isLoadingOffice } = useGetOfficeLocationsQuery();
 	const locationOptions = officeData?.data?.data || officeData?.data || officeData || [];
+	const { data: adminOfficesData, isLoading: isLoadingAdminOffices } = useGetAdminOfficesQuery(
+		user?.id || "",
+		{ skip: !isAdmin || !user?.id },
+	);
 	const [createQrToken, { isLoading: isLoadingQR }] = useCreateQrTokenMutation();
 
 	const [inputs, setInputs] = useState({
@@ -113,17 +118,54 @@ const EmployeeDashBoard = () => {
 		}
 	}, [user, router]);
 
-	// Fetch calender data when filter changes (this will be refactored to use lazy query if needed, 
-	// but for now we'll stick to basic implementation)
+	const getOfficeId = (office: any) => {
+		if (!office) return "";
+		if (typeof office === "string" || typeof office === "number") return String(office);
+		return String(office.id || office._id || office.officeId || office.office_id || "");
+	};
+
+	const getOfficeRecords = (payload: any): any[] => {
+		if (Array.isArray(payload)) return payload;
+		if (Array.isArray(payload?.data?.data)) return payload.data.data;
+		if (Array.isArray(payload?.data)) return payload.data;
+		if (Array.isArray(payload?.locations)) return payload.locations;
+		if (Array.isArray(payload?.data?.locations)) return payload.data.locations;
+		return [];
+	};
+
+	const adminOfficeOptions = React.useMemo(() => {
+		const assignedRecords = getOfficeRecords(adminOfficesData);
+		const sessionOffices = Array.isArray(user?.offices)
+			? user.offices
+			: user?.officeId
+				? [user.officeId]
+				: [];
+		const candidates = [...assignedRecords, ...sessionOffices]
+			.map((record: any) => record?.office || record)
+			.map((office: any) => {
+				const id = getOfficeId(office);
+				const details = locationOptions.find((location: any) => getOfficeId(location) === id);
+				return details || { ...office, id };
+			})
+			.filter((office: any) => Boolean(getOfficeId(office)));
+
+		return Array.from(new Map(candidates.map((office: any) => [getOfficeId(office), office])).values());
+	}, [adminOfficesData, user?.offices, user?.officeId, locationOptions]);
+
+	const qrOfficeOptions = isSuperAdmin ? locationOptions : isAdmin ? adminOfficeOptions : [];
+	const selectedQrOffice = qrOfficeOptions.find((office: any) => getOfficeId(office) === inputs.officeId);
 
 	useEffect(() => {
-		if (user?.officeId) {
-			setInputs(prev => ({
-				...prev,
-				officeId: user.officeId,
-			}));
-		}
-	}, [user?.officeId]);
+		if (qrOfficeOptions.length === 0) return;
+		setInputs((prev) => {
+			const isSelectedOfficeAvailable = qrOfficeOptions.some(
+				(office: any) => getOfficeId(office) === prev.officeId,
+			);
+			if (isSelectedOfficeAvailable) return prev;
+			setDataQR(null);
+			return { ...prev, officeId: getOfficeId(qrOfficeOptions[0]) };
+		});
+	}, [qrOfficeOptions]);
 
 	// Extract data from RTK Query responses
 	const users = usersData?.data?.users || usersData?.data?.data?.data || usersData?.data?.data || usersData?.data || [];
@@ -144,13 +186,24 @@ const EmployeeDashBoard = () => {
 			...prevState,
 			[input]: value,
 		}));
+		if (input === "officeId" || input === "type") {
+			setDataQR(null);
+		}
 	};
 
 	const handleSubmit = async () => {
+		if (!inputs.officeId) {
+			toast.error("Select an assigned office before generating a QR code.");
+			return;
+		}
+		if (!inputs.type) {
+			toast.error("Select a clock type before generating a QR code.");
+			return;
+		}
 		try {
-			const res = await createQrToken(inputs).unwrap();
+			const res = await createQrToken({ officeId: inputs.officeId, type: inputs.type }).unwrap();
 			setDataQR(res.data || res);
-			toast.success("QR Create!");
+			toast.success(`QR created for ${selectedQrOffice?.name || "the selected office"}.`);
 		} catch (error: any) {
 			toast.error(getErrorMessage(error, "Failed to create QR"));
 		}
@@ -225,7 +278,16 @@ const EmployeeDashBoard = () => {
 						</div>
 					)}
 				</div>
-				<div className='flex flex-row gap-2 w-[100%]  md:w-[27%] pt-[20px] md:p-[0px]'>
+				<div className='flex flex-col md:flex-row gap-2 w-[100%] md:w-[40%] pt-[20px] md:p-[0px]'>
+					<div className="w-full md:min-w-[180px]">
+						<CustomDropdownOffice
+							label={isAdmin && isLoadingAdminOffices ? "Loading assigned offices..." : selectedQrOffice?.name || "Select office"}
+							options={qrOfficeOptions}
+							name="officeId"
+							handleOnChange={handleOnChange}
+							loading={isSuperAdmin ? isLoadingOffice : isLoadingAdminOffices}
+						/>
+					</div>
 					<Dropdowns
 						label="Clock Type"
 						options={["CHECK_IN", "CHECK_OUT"]}
@@ -237,7 +299,7 @@ const EmployeeDashBoard = () => {
 												  !bg-[#2563EB] border-[#B9E6FE] text-[#fff] rounded-none
 									`}
 						onClick={handleSubmit}
-						disabled={isLoadingQR}
+						disabled={isLoadingQR || isLoadingAdminOffices || !inputs.officeId || !inputs.type}
 					>
 						Create
 					</button>
