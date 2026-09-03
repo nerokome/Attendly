@@ -1,4 +1,3 @@
-import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import axios from "axios";
 import { AuthOptions } from "next-auth";
@@ -136,7 +135,3 @@ export const authOptions: AuthOptions = {
   },
   debug: process.env.NODE_ENV === 'development',
 };
-
-const handler = NextAuth(authOptions);
-
-export { handler as GET, handler as POST };
