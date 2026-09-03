@@ -43,6 +43,9 @@ const getSecret = () => {
 
 export const authOptions: AuthOptions = {
   providers: [
+    // The project currently resolves duplicate next-auth type declarations;
+    // the provider runtime is compatible, but TypeScript compares the types
+    // from both installations as distinct types.
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -92,7 +95,7 @@ export const authOptions: AuthOptions = {
           throw new Error(message);
         }
       },
-    }),
+    }) as any,
   ],
   session: {
     strategy: "jwt",
